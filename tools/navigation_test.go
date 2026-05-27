@@ -275,6 +275,9 @@ func TestShortenURL(t *testing.T) {
 
 		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
+		ctx = mcpgrafana.WithGrafanaClient(ctx, &mcpgrafana.GrafanaClient{
+			PublicURL: "https://grafana.example.com",
+		})
 
 		result, err := shortenURL(ctx, ShortenURLParams{
 			URL: "https://grafana.example.com/explore?left=%7B%22datasource%22%3A%22abc%22%7D",
@@ -349,6 +352,24 @@ func TestShortenURL(t *testing.T) {
 		result, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.public.example.com/d/test"})
 		require.NoError(t, err)
 		assert.Contains(t, requestHost, "127.0.0.1")
+		assert.Equal(t, "https://grafana.public.example.com/goto/abc123", result)
+	})
+
+	t.Run("Rebases absolute short URL response to Public URL host", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"uid":"abc123","url":"http://internal-grafana:3000/goto/abc123"}`))
+		}))
+		t.Cleanup(ts.Close)
+
+		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
+		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
+		ctx = mcpgrafana.WithGrafanaClient(ctx, &mcpgrafana.GrafanaClient{
+			PublicURL: "https://grafana.public.example.com",
+		})
+
+		result, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.public.example.com/d/test"})
+		require.NoError(t, err)
 		assert.Equal(t, "https://grafana.public.example.com/goto/abc123", result)
 	})
 

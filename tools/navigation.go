@@ -230,11 +230,37 @@ func shortenURL(ctx context.Context, args ShortenURLParams) (string, error) {
 		return "", fmt.Errorf("short-url response missing url field")
 	}
 
-	// Older/newer Grafana variants may return either absolute or relative URL.
-	if strings.HasPrefix(shortResp.URL, "/") {
-		return strings.TrimRight(publicBaseURL, "/") + shortResp.URL, nil
+	normalizedURL, err := normalizeShortURLWithPublicBase(shortResp.URL, publicBaseURL)
+	if err != nil {
+		return "", err
 	}
-	return shortResp.URL, nil
+	return normalizedURL, nil
+}
+
+func normalizeShortURLWithPublicBase(rawShortURL, publicBaseURL string) (string, error) {
+	publicBase, err := url.Parse(publicBaseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid public base url: %w", err)
+	}
+
+	shortURL, err := url.Parse(rawShortURL)
+	if err != nil {
+		return "", fmt.Errorf("short-url response contains invalid url: %w", err)
+	}
+
+	// Keep path/query/fragment from Grafana response but always use public
+	// scheme/host so shortened links match deeplink host behavior.
+	if shortURL.IsAbs() {
+		shortURL.Scheme = publicBase.Scheme
+		shortURL.Host = publicBase.Host
+		return shortURL.String(), nil
+	}
+
+	if strings.HasPrefix(rawShortURL, "/") {
+		return strings.TrimRight(publicBaseURL, "/") + rawShortURL, nil
+	}
+
+	return publicBase.ResolveReference(shortURL).String(), nil
 }
 
 var GenerateDeeplink = mcpgrafana.MustTool(
