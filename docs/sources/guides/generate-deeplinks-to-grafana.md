@@ -32,6 +32,10 @@ Ask the assistant to generate a link to a dashboard by UID, or to a specific pan
 
 Ask for a link to Grafana Explore with a specific datasource (by UID). Optionally specify time range or other query parameters. The assistant returns a URL that opens Explore with that datasource and options pre-filled.
 
+## Shorten long links
+
+Explore links can get long when they include encoded `left` state. After generating a deeplink, ask the assistant to shorten it. The server uses Grafana's `POST /api/short-urls` endpoint and returns a compact `/goto/<uid>` URL that is easier to share in chat, tickets, or docs.
+
 ## Next steps
 
 - [Search and inspect dashboards](../search-and-inspect-dashboards/) to find dashboard and panel IDs.
