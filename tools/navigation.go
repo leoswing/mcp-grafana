@@ -161,7 +161,7 @@ func generateDeeplinkWithMode(ctx context.Context, args GenerateDeeplinkParams, 
 	}
 
 	if !allowShorten {
-		mcpgrafana.LoggerFromContext(ctx).WarnContext(ctx,
+		mcpgrafana.LoggerFromContext(ctx).DebugContext(ctx,
 			"generate_deeplink shorten requested while write tools are disabled; returning full URL")
 		return deeplink, nil
 	}
