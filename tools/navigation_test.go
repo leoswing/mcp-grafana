@@ -279,9 +279,7 @@ func TestShortenURL(t *testing.T) {
 			PublicURL: "https://grafana.example.com",
 		})
 
-		result, err := shortenURL(ctx, ShortenURLParams{
-			URL: "https://grafana.example.com/explore?left=%7B%22datasource%22%3A%22abc%22%7D",
-		})
+		result, err := shortenURL(ctx, "https://grafana.example.com/explore?left=%7B%22datasource%22%3A%22abc%22%7D")
 		require.NoError(t, err)
 		assert.Equal(t, "https://grafana.example.com/goto/abc123", result)
 		assert.Equal(t, "/explore?left=%7B%22datasource%22%3A%22abc%22%7D", capturedPath)
@@ -299,7 +297,7 @@ func TestShortenURL(t *testing.T) {
 		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL, APIKey: "glsa_test_token"}
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
 
-		_, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.example.com/d/test"})
+		_, err := shortenURL(ctx, "https://grafana.example.com/d/test")
 		require.NoError(t, err)
 		assert.Equal(t, "Bearer glsa_test_token", capturedAuth)
 	})
@@ -307,14 +305,14 @@ func TestShortenURL(t *testing.T) {
 	t.Run("Rejects invalid URL", func(t *testing.T) {
 		cfg := mcpgrafana.GrafanaConfig{URL: "http://localhost:3000"}
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
-		_, err := shortenURL(ctx, ShortenURLParams{URL: "http://%zz"})
+		_, err := shortenURL(ctx, "http://%zz")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid url")
 	})
 
 	t.Run("No grafana URL configured", func(t *testing.T) {
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), mcpgrafana.GrafanaConfig{})
-		_, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.example.com/d/test"})
+		_, err := shortenURL(ctx, "https://grafana.example.com/d/test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "grafana url not configured")
 	})
@@ -329,7 +327,7 @@ func TestShortenURL(t *testing.T) {
 		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
 
-		result, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.example.com/d/test"})
+		result, err := shortenURL(ctx, "https://grafana.example.com/d/test")
 		require.NoError(t, err)
 		assert.Equal(t, ts.URL+"/goto/abc123", result)
 	})
@@ -349,7 +347,7 @@ func TestShortenURL(t *testing.T) {
 			PublicURL: "https://grafana.public.example.com",
 		})
 
-		result, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.public.example.com/d/test"})
+		result, err := shortenURL(ctx, "https://grafana.public.example.com/d/test")
 		require.NoError(t, err)
 		assert.Contains(t, requestHost, "127.0.0.1")
 		assert.Equal(t, "https://grafana.public.example.com/goto/abc123", result)
@@ -368,7 +366,7 @@ func TestShortenURL(t *testing.T) {
 			PublicURL: "https://grafana.public.example.com",
 		})
 
-		result, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.public.example.com/d/test"})
+		result, err := shortenURL(ctx, "https://grafana.public.example.com/d/test")
 		require.NoError(t, err)
 		assert.Equal(t, "https://grafana.public.example.com/goto/abc123", result)
 	})
@@ -384,7 +382,7 @@ func TestShortenURL(t *testing.T) {
 		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
 
-		_, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.example.com/d/test"})
+		_, err := shortenURL(ctx, "https://grafana.example.com/d/test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create short url failed with status 500")
 	})
@@ -399,9 +397,67 @@ func TestShortenURL(t *testing.T) {
 		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
 		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
 
-		_, err := shortenURL(ctx, ShortenURLParams{URL: "https://grafana.example.com/d/test"})
+		_, err := shortenURL(ctx, "https://grafana.example.com/d/test")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "missing url field")
+	})
+}
+
+func TestGenerateDeeplink_ShortenCompatibilityFallback(t *testing.T) {
+	t.Run("Returns shortened URL when shortening succeeds", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/api/short-urls", r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"uid":"abc123","url":"https://grafana.example.com/goto/abc123"}`))
+		}))
+		t.Cleanup(ts.Close)
+
+		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
+		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
+		ctx = mcpgrafana.WithGrafanaClient(ctx, &mcpgrafana.GrafanaClient{PublicURL: "https://grafana.example.com"})
+
+		result, err := generateDeeplink(ctx, GenerateDeeplinkParams{
+			ResourceType: "dashboard",
+			DashboardUID: stringPtr("abc123"),
+			Shorten:      true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://grafana.example.com/goto/abc123", result)
+	})
+
+	t.Run("Falls back to long URL when shortening fails", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"forbidden"}`))
+		}))
+		t.Cleanup(ts.Close)
+
+		cfg := mcpgrafana.GrafanaConfig{URL: ts.URL}
+		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
+		ctx = mcpgrafana.WithGrafanaClient(ctx, &mcpgrafana.GrafanaClient{PublicURL: "https://grafana.example.com"})
+
+		result, err := generateDeeplink(ctx, GenerateDeeplinkParams{
+			ResourceType: "dashboard",
+			DashboardUID: stringPtr("abc123"),
+			Shorten:      true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "https://grafana.example.com/d/abc123", result)
+	})
+
+	t.Run("Read-only mode ignores shorten and returns long URL", func(t *testing.T) {
+		cfg := mcpgrafana.GrafanaConfig{URL: "http://localhost:3000"}
+		ctx := mcpgrafana.WithGrafanaConfig(context.Background(), cfg)
+
+		result, err := generateDeeplinkReadOnly(ctx, GenerateDeeplinkParams{
+			ResourceType: "dashboard",
+			DashboardUID: stringPtr("abc123"),
+			Shorten:      true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "http://localhost:3000/d/abc123", result)
 	})
 }
 

@@ -34,7 +34,7 @@ Ask for a link to Grafana Explore with a specific datasource (by UID). Optionall
 
 ## Shorten long links
 
-Explore links can get long when they include encoded `left` state. After generating a deeplink, ask the assistant to shorten it. The server uses Grafana's `POST /api/short-urls` endpoint and returns a compact `/goto/<uid>` URL that is easier to share in chat, tickets, or docs.
+Explore links can get long when they include encoded `left` state. Ask the assistant to call `generate_deeplink` with `shorten=true`. The server will try Grafana's `POST /api/short-urls` endpoint and return a compact `/goto/<uid>` URL; if shortening is unavailable, it returns the full deeplink instead.
 
 ## Next steps
 

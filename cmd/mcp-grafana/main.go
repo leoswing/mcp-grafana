@@ -60,7 +60,7 @@ var categoryDescription = map[string]string{
 	"sift":          "Sift Investigations: Start and manage Sift investigations, analyze logs/traces, find error patterns, and detect slow requests.",
 	"admin":         "Admin: List teams and perform administrative tasks.",
 	"pyroscope":     "Pyroscope: Profile applications and fetch profiling data.",
-	"navigation":    "Navigation: Generate deeplink URLs and optional short URLs for Grafana resources like dashboards, panels, and Explore queries.",
+	"navigation":    "Navigation: Generate deeplink URLs for Grafana resources like dashboards, panels, and Explore queries, with optional built-in shortening.",
 	"annotations":   "Annotations: Create and manage dashboard annotations.",
 	"rendering":     "Rendering: Export dashboard panels or full dashboards as PNG images (requires Grafana Image Renderer plugin).",
 	"plugin":        "Plugins: Check whether Grafana plugins are installed and fetch plugin details.",
